@@ -8,7 +8,7 @@ class MyFile:
     def __init__(self, name):
         self.name = name
         self.size = os.path.getsize(self.name)
-        self.processed = False
+        self._processed = False
         self._partHash = None
         self._fullHash = None
 
@@ -39,7 +39,18 @@ class MyFile:
         return self._fullHash
     fullHash = property(_getFullHash)
 
-        
+    def findDuplicates(self, files):
+        if self._processed:
+            return list()
+        dup = list()
+        for f in files:
+            if f.size == self.size and not os.path.samefile(f.name, self.name):
+                if f.partHash == self.partHash and f.fullHash == self.fullHash:
+                    f._processed = True
+                    dup.append(f)
+        if len(dup) > 0:
+            dup.append(self)
+        return dup                           
 
 def sizeParse(szstr):
     suffix = ['GB', 'MB', 'KB', 'B']
@@ -83,11 +94,16 @@ def main():
 
     Files = list()
     [Files.extend(getFiles(x, lambda x: x.size > MinimumSize and x.size < MaximumSize)) for x in args.dirs]
-    print(Files)
+    
+    p = False
+
+    for f in Files:
+        dup = f.findDuplicates(Files)
+        if len(dup) > 0:
+            if not p:
+                print("Following are the duplicates:")
+                p = True
+            print([x.name for x in dup])
 
 if __name__ == '__main__':
     main()
-
-
-
-
