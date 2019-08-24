@@ -6,14 +6,12 @@
 #include <vector>
 
 #include <cstdio>
-#include <iostream>
 
 #include <gupta/format_io.hpp>
 #include <windows.h>
 
 #include <array>
 #include <memory>
-#include <openssl/md5.h>
 #include <openssl/sha.h>
 #include <unordered_map>
 
@@ -21,12 +19,13 @@ namespace fs = std::filesystem;
 
 class MyFile {
     fs::path m_path;
-    std::array<unsigned char, MD5_DIGEST_LENGTH> m_partHash;
+    std::array<unsigned char, SHA_DIGEST_LENGTH> m_partHash;
     std::array<unsigned char, SHA256_DIGEST_LENGTH> m_fullHash;
     bool m_hasPartHash, m_hasFullHash, m_processed;
 
   public:
     static size_t PART_HASH_SIZE;
+    static std::unique_ptr<unsigned char[]> buf;
     MyFile(fs::path p)
         : m_path{std::move(p)}, m_hasPartHash(false), m_hasFullHash(false),
           m_processed(false) {}
@@ -34,10 +33,9 @@ class MyFile {
     const auto &path() const { return m_path; }
     const auto &partHash() {
         if (!m_hasPartHash) {
-            auto buf = std::make_unique<unsigned char[]>(PART_HASH_SIZE);
             std::FILE *f = std::fopen(m_path.string().c_str(), "rb");
             auto bs = fread(buf.get(), 1, PART_HASH_SIZE, f);
-            MD5(buf.get(), PART_HASH_SIZE, m_partHash.data());
+            SHA1(buf.get(), PART_HASH_SIZE, m_partHash.data());
             fclose(f);
             m_hasPartHash = true;
         }
@@ -46,7 +44,6 @@ class MyFile {
 
     const auto &fullHash() {
         if (!m_hasFullHash) {
-            auto buf = std::make_unique<unsigned char[]>(PART_HASH_SIZE);
             std::FILE *f = std::fopen(m_path.string().c_str(), "rb");
             size_t bs;
             SHA256_CTX ctx;
@@ -69,17 +66,19 @@ class MyFile {
                 f.partHash() == partHash() && f.fullHash() == fullHash()) {
                 f.m_processed = true;
                 if (!hasDup) {
-                    std::wcout << m_path << " ";
+                    std::wprintf(L"%s", m_path.c_str());
                 }
-                std::wcout << ", " << f.m_path;
+                std::wprintf(L", %s", f.path().c_str());
             }
         if (hasDup)
-            std::wcout << std::endl << std::endl;
+            puts("\n");
         m_processed = true;
     }
 };
 
 size_t MyFile::PART_HASH_SIZE = 64 * 1024;
+std::unique_ptr<unsigned char[]> MyFile::buf =
+    std::make_unique<unsigned char[]>(MyFile::PART_HASH_SIZE);
 
 bool endswith(std::wstring_view str, std::wstring_view substr) {
     return str.length() >= substr.length() &&
