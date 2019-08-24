@@ -64,11 +64,11 @@ class MyFile {
         for (auto &f : collection)
             if (!fs::equivalent(f.m_path, m_path) &&
                 f.partHash() == partHash() && f.fullHash() == fullHash()) {
-                f.m_processed = true;
                 if (!hasDup) {
                     std::wprintf(L"%s", m_path.c_str());
                 }
-                std::wprintf(L", %s", f.path().c_str());
+                f.m_processed = hasDup = true;
+                std::wprintf(L",\n%s", f.path().c_str());
             }
         if (hasDup)
             puts("\n");
