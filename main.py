@@ -2,13 +2,13 @@ import argparse
 import os
 import fnmatch
 import hashlib
+import time
 
 class MyFile:
     partHashSize = 0
     def __init__(self, name):
         self.name = name
         self.size = os.path.getsize(self.name)
-        self._processed = False
         self._partHash = None
         self._fullHash = None
 
@@ -80,30 +80,52 @@ def getFiles(arg, filter):
         path = '.'
     return recursiveDir(path, file, filter)
 
+def classify(seq, key):
+    buckets = {}
+    for item in seq:
+        k = key(item)
+        if not k in buckets:
+            buckets[k] = [item]
+        else:
+            buckets[k].append(item)
+    
+    return buckets
+
 def main():
     parser = argparse.ArgumentParser(description='Duplicate File Finder')
     parser.add_argument('--min-size', dest= 'minsize', default='1KB', help='minimum file size, supports suffixes GB, MB, KB, B')
     parser.add_argument('--max-size', dest= 'maxsize', default='1024GB', help='maximum file size, supports suffixes GB, MB, KB, B')
     parser.add_argument('--hash-size', dest= 'hashsize', default='64KB', help='file hash size used for preliminary checking')
     parser.add_argument('dirs', metavar='dirs', type=str,
-                        nargs='*', help='dirs or globs or files, supports glob patterns')
+                    nargs='*', help='dirs or globs or files, supports glob patterns')
     args = parser.parse_args()
     MyFile.partHashSize = sizeParse(args.hashsize)
     MinimumSize = sizeParse(args.minsize)
     MaximumSize = sizeParse(args.maxsize)
 
-    Files = list()
-    [Files.extend(getFiles(x, lambda x: x.size > MinimumSize and x.size < MaximumSize)) for x in args.dirs]
-    
-    p = False
+    files = []
+    for d in args.dirs:
+        print("searching", d)
+        files.extend(getFiles(d, lambda x: x.size > MinimumSize and x.size < MaximumSize))
 
-    for f in Files:
-        dup = f.findDuplicates(Files)
-        if len(dup) > 0:
-            if not p:
-                print("Following are the duplicates:")
-                p = True
-            print([x.name for x in dup])
+    dupSize = 0
+    sameSizeFiles = classify(files, lambda f : f.size)
+    for size, files in sameSizeFiles.items():
+        if len(files) <= 1:
+            continue
+
+        samePartHash = classify(files, lambda f : f.partHash)
+        for partHash, files in samePartHash.items():
+            if len(files) > 1:
+                sameFiles = classify(files, lambda f : f.fullHash)
+                for fullHash, files in sameFiles.items():
+                    print(fullHash, files)
+                    for file in files:
+                        dupSize += file.size
+
 
 if __name__ == '__main__':
+    start = time.time()
     main()
+    end = time.time()
+    print("took", end - start)
